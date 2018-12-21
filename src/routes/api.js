@@ -82,11 +82,13 @@ module.exports = function (app) {
      *     
      */
     app.post("/api/append/:domain", function (req, res, next) {
-        var exists = fs.existsSync(settings.nginxConfigPath);
-        if (!exists) res.status(400).json({ success: false, error: '配置文件不存在' });
-        else {
-            var data = fs.readFileSync(settings.nginxConfigPath);
-            var original = data.toString().replace(new RegExp(" ", "g"), "").replace(new RegExp(";", "g"), "").replace(new RegExp("\r", "g"), "").split("\n");
+        var output = { success: false, message: null, error: null };
+        var result = config.readSync(settings.nginxConfigPath);
+        if (result.status == 0) {
+            output.error = "配置文件不存在";
+            res.json(output);
+        } else {
+            var original = result.data;
             var lines = original.length;
             var domain = req.params.domain;
             var haveAppend = linq.from(original).where(function (val) { return val == domain; }).toArray().length <= 0;
@@ -94,40 +96,66 @@ module.exports = function (app) {
                 original.splice(lines, 0, domain);
             }
             if (original.length != lines) {
-                var context = original.join('\r\n ') + ';';
-                fs.writeFileSync(settings.nginxConfigPath, context, 'utf8');
-                var progress = [];
-                //测试nginx配置
-                nginx.verify(function (error, stdout, stderr) {
-                    if (!error) {
-                        //nginx 配置测试成功
-                        progress.push("nginx -t successfully");
-                        nginx.reload(function (error, stdout, stderr) {
-                            if (!error) {
-                                //nginx 重载成功
-                                progress.push("nginx -s reload successfully");
-                            }
-                            res.json({ success: true, message: 'append successfully ...', progress: progress.join("\n") });
-                        });
-                    } else {
-                        //nginx 配置测试失败
-                        progress.push("nginx -t error" + error.message);
-                        res.json({ success: true, message: 'append successfully ...', progress: progress.join("\n") });
-                    }
-                });
+                config.writeSync(settings.nginxConfigPath, original);
+            }
+            var verifyResult = nginx.verify();
+            if (verifyResult.success) {
+                var reloadResult = nginx.reload();
+                if (reloadResult.success) {
+                    output.success = true;
+                    output.message = "域名绑定成功，nginx重载成功";
+                    res.json(output);
+                } else {
+                    output.error = "nginx -s reload 执行失败";
+                    res.json(output);
+                }
             } else {
-                res.json({ success: false, message: 'domain name already exists ...' });
+                output.error = "nginx -t 执行失败";
+                res.json(output);
             }
         }
     });
 
-    /* 删除配置 */
+    /**
+     * @swagger
+     * /api/remove/{domain}: 
+     *   post:
+     *     tags: [Domain]
+     *     summary: "删除域名绑定"
+     *     description: 删除域名绑定
+     *     produces:
+     *      - application/json
+     *     parameters: 
+     *     - name: "domain"
+     *       in: "path"
+     *       description: "需要删除绑定的域名"
+     *       required: true
+     *       type: "string"
+     *     responses: 
+     *       200:
+     *          description: 请求成功
+     *          schema: 
+     *              type: object  
+     *              properties: 
+     *                success: 
+     *                  type: boolean 
+     *                  description: 操作是否成功.true：成功,false：失败 
+     *                error: 
+     *                  type: string 
+     *                  description: 错误信息. 
+     *                progress: 
+     *                  type: string 
+     *                  description: nginx -t 及 reload 的过程信息. 
+     *     
+     */
     app.post("/api/remove/:domain", function (req, res, next) {
-        var exists = fs.existsSync(settings.nginxConfigPath);
-        if (!exists) res.status(400).json({ success: false, error: 'file path does not exist' });
-        else {
-            var data = fs.readFileSync(settings.nginxConfigPath);
-            var original = data.toString().replace(new RegExp(" ", "g"), "").replace(new RegExp(";", "g"), "").replace(new RegExp("\r", "g"), "").split("\n");
+        var output = { success: false, message: null, error: null };
+        var result = config.readSync(settings.nginxConfigPath);
+        if (result.status == 0) {
+            output.error = "配置文件不存在";
+            res.json(output);
+        } else {
+            var original = result.data;
             var lines = original.length;
             var domain = req.params.domain;
             var haveRemove = linq.from(original).where(function (val) { return val == domain; }).toArray().length > 0;
@@ -136,30 +164,22 @@ module.exports = function (app) {
                 original.splice(removeIndex, 1);
             }
             if (original.length != lines) {
-                var context = original.join('\r\n ') + ';';
-                fs.writeFileSync(settings.nginxConfigPath, context, 'utf8');
-                var progress = [];
-                //测试nginx配置
-                nginx.verify(function (error, stdout, stderr) {
-                    if (!error) {
-                        //nginx 配置测试成功
-                        progress.push("nginx -t successfully");
-                        nginx.reload(function (error, stdout, stderr) {
-                            if (!error) {
-                                //nginx 重载成功
-                                progress.push("nginx -s reload successfully");
-                            }
-                            res.json({ success: true, message: 'append successfully ...', progress: progress.join("\n") });
-                        });
-                    } else {
-                        //nginx 配置测试失败
-                        progress.push("nginx -t error" + error.message);
-                        res.json({ success: true, message: 'append successfully ...', progress: progress.join("\n") });
-                    }
-                });
-
+                config.writeSync(settings.nginxConfigPath, original);
+            }
+            var verifyResult = nginx.verify();
+            if (verifyResult.success) {
+                var reloadResult = nginx.reload();
+                if (reloadResult.success) {
+                    output.success = true;
+                    output.message = "域名绑定成功，nginx重载成功";
+                    res.json(output);
+                } else {
+                    output.error = "nginx -s reload 执行失败";
+                    res.json(output);
+                }
             } else {
-                res.json({ success: false, message: 'domain name not exist ...' });
+                output.error = "nginx -t 执行失败";
+                res.json(output);
             }
         }
     });

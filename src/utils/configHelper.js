@@ -25,7 +25,7 @@ var configHelper = {
     writeSync: function (path, data) {
         var existsHead = linq.from(data).where(function (val) { return val.search("server_name") != -1 }).toArray().length > 0;
         if (!existsHead) {
-            data.splice(data.length, 0, "server_name");
+            data.splice(0, 0, "server_name");
         }
         var context = data.join('\r\n ') + ';';
         fs.writeFileSync(path, context, 'utf8');
